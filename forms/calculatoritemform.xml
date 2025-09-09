@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<form addfieldprefix="Fisccalculator\Component\Fisc_calculator\Site\Field">
+  <fieldset>
+    <field name="id" type="text" readonly="true" class="readonly" default="0" description="JGLOBAL_FIELD_ID_DESC"/>
+    <field name="state" default="1" type="list" label="JSTATUS" description="JFIELD_PUBLISHED_DESC" class="inputbox" size="1">
+      <option value="1">JPUBLISHED</option>
+      <option value="0">JUNPUBLISHED</option>
+      <option value="2">JARCHIVED</option>
+      <option value="-2">JTRASHED</option>
+    </field>
+    <field name="ordering"/>
+    <field name="checked_out" type="hidden" filter="unset"/>
+    <field name="checked_out_time" type="hidden" filter="unset"/>
+    <field name="title" filter="safehtml" type="text" required="true" label="JGLOBAL_TITLE" description="JFIELD_TITLE_DESC" hint="COM_FISC_CALCULATOR_FORM_LBL_CALCULATORITEM_TITLE"/>
+    <field name="description" editor="|" buttons="false" filter="JComponentHelper::filterText" type="editor" label="COM_FISC_CALCULATOR_FORM_LBL_CALCULATORITEM_DESCRIPTION" description="COM_FISC_CALCULATOR_FORM_DESC_CALCULATORITEM_DESCRIPTION" hint="COM_FISC_CALCULATOR_FORM_LBL_CALCULATORITEM_DESCRIPTION"/>
+    <field name="positive" type="checkbox" checked="" label="COM_FISC_CALCULATOR_FORM_LBL_CALCULATORITEM_POSITIVE" description="COM_FISC_CALCULATOR_FORM_DESC_CALCULATORITEM_POSITIVE" hint="COM_FISC_CALCULATOR_FORM_LBL_CALCULATORITEM_POSITIVE"/>
+    <field name="groundvalue" required="true" default="0" label="COM_FISC_CALCULATOR_FORM_LBL_CALCULATORITEM_GROUNDVALUE" description="COM_FISC_CALCULATOR_FORM_DESC_CALCULATORITEM_GROUNDVALUE" hint="COM_FISC_CALCULATOR_FORM_LBL_CALCULATORITEM_GROUNDVALUE"/>
+    <field name="timedependent" type="checkbox" checked="" label="COM_FISC_CALCULATOR_FORM_LBL_CALCULATORITEM_TIMEDEPENDENT" description="COM_FISC_CALCULATOR_FORM_DESC_CALCULATORITEM_TIMEDEPENDENT" hint="COM_FISC_CALCULATOR_FORM_LBL_CALCULATORITEM_TIMEDEPENDENT"/>
+    <field name="calculator_id" type="foreignkey" label="COM_FISC_CALCULATOR_FORM_LBL_CALCULATORITEM_CALCULATOR_ID" description="COM_FISC_CALCULATOR_FORM_DESC_CALCULATORITEM_CALCULATOR_ID" default="" input_type="list" table="#__fisc_calculator" key_field="id" translate="true" value_field="title" required="true"/>
+    <field name="version_note" type="text" label="JGLOBAL_FIELD_VERSION_NOTE_LABEL" description="JGLOBAL_FIELD_VERSION_NOTE_DESC" class="inputbox" size="45" labelclass="control-label"/>
+  </fieldset>
+</form>

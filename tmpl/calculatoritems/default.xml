@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<metadata>
+	<layout title="COM_FISC_CALCULATOR_TITLE_LIST_VIEW_CALCULATORITEMS" option="View">
+        <message>
+                        <![CDATA[COM_FISC_CALCULATOR_TITLE_LIST_VIEW_CALCULATORITEMS_DESC]]>
+        </message>
+	</layout>
+	
+</metadata>
