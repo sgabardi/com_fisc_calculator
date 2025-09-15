@@ -1,0 +1,523 @@
+diff --git a/components/com_fisc_calculator/src/Controller/ProjectformController.php b/components/com_fisc_calculator/src/Controller/ProjectformController.php
+index 0000000..1111111 100644
+--- a/components/com_fisc_calculator/src/Controller/ProjectformController.php
++++ b/components/com_fisc_calculator/src/Controller/ProjectformController.php
+@@ -1,15 +1,55 @@
+-<?php
+-namespace FiscCalculator\Component\Fisc_calculator\Site\Controller;
++<?php
++namespace Fisccalculator\Component\Fisc_calculator\Site\Controller;
+
+ use Joomla\CMS\MVC\Controller\FormController;
++use Joomla\CMS\Factory;
++use Joomla\CMS\Router\Route;
+
+ class ProjectformController extends FormController
+ {
+-    protected $view_item = 'projectform';
+-    protected $view_list = 'projects';
++    protected $view_item = 'projectform';
++    protected $view_list = 'projects';
+
+-    public function save($key = null, $urlVar = null)
+-    {
+-        parent::save($key, $urlVar);
+-        $this->setRedirect('index.php?option=com_fisc_calculator&view=projects');
+-    }
++    /**
++     * Vollständiges Save ohne parent::save(), damit keine Table-Klasse erwartet wird.
++     */
++    public function save($key = null, $urlVar = null)
++    {
++        $app   = Factory::getApplication();
++        $input = $app->getInput();
++
++        $data = $input->get('jform', [], 'array');
++        // sales_path_id aus URL übernehmen (optional)
++        $salesPathId = $input->getInt('sales_path_id');
++        if ($salesPathId) {
++            $data['sales_path_id'] = $salesPathId;
++        }
++
++        /** @var \Fisccalculator\Component\Fisc_calculator\Site\Model\ProjectformModel $model */
++        $model  = $this->getModel('Projectform');
++        $result = $model->save($data);
++
++        if ($result === false) {
++            $this->setRedirect(
++                Route::_('index.php?option=com_fisc_calculator&view=projectform&layout=edit', false),
++                'Fehler beim Speichern: ' . $model->getError(),
++                'error'
++            );
++            return false;
++        }
++
++        if ($salesPathId) {
++            // Weiterleitung zum Sales-Project
++            $this->setRedirect(
++                Route::_('index.php?option=com_fisc_salesproject&view=salesproject&id=' . $salesPathId, false),
++                'Projekt gespeichert & verknüpft.'
++            );
++        } else {
++            $this->setRedirect(
++                Route::_('index.php?option=com_fisc_calculator&view=projects', false),
++                'Projekt gespeichert.'
++            );
++        }
++        return true;
++    }
+ }
+diff --git a/components/com_fisc_calculator/src/Model/ProjectformModel.php b/components/com_fisc_calculator/src/Model/ProjectformModel.php
+index 0000000..2222222 100644
+--- a/components/com_fisc_calculator/src/Model/ProjectformModel.php
++++ b/components/com_fisc_calculator/src/Model/ProjectformModel.php
+@@ -1,40 +1,123 @@
+-<?php
+-namespace FiscCalculator\Component\Fisc_calculator\Site\Model;
++<?php
++namespace Fisccalculator\Component\Fisc_calculator\Site\Model;
+
+-use Joomla\CMS\MVC\Model\FormModel;
+-use Joomla\CMS\Factory;
++use Joomla\CMS\MVC\Model\FormModel;
++use Joomla\CMS\Factory;
+
+ class ProjectformModel extends FormModel
+ {
+-    public function getForm($data = [], $loadData = true)
+-    {
+-        return $this->loadForm('com_fisc_calculator.projectform', 'projectform', [
+-            'control' => 'jform',
+-            'load_data' => $loadData
+-        ]);
+-    }
++    public function getForm($data = [], $loadData = true)
++    {
++        return $this->loadForm('com_fisc_calculator.projectform', 'projectform', [
++            'control'   => 'jform',
++            'load_data' => $loadData
++        ]);
++    }
+
+-    protected function loadFormData()
+-    {
+-        return Factory::getApplication()->getUserState('com_fisc_calculator.edit.projectform.data', []);
+-    }
++    protected function loadFormData()
++    {
++        return Factory::getApplication()->getUserState('com_fisc_calculator.edit.projectform.data', []);
++    }
+
+-    public function save($data)
+-    {
+-        // bisher Table-Ansatz
+-    }
++    /**
++     * Direkt per SQL speichern (INSERT/UPDATE), inkl. sales_path_id
++     */
++    public function save($data)
++    {
++        $db = Factory::getDbo();
++
++        $id          = isset($data['id']) ? (int) $data['id'] : 0;
++        $customerId  = (int)($data['customer_id'] ?? 0);
++        $description = trim($data['description'] ?? '');
++        $assigned    = (int)($data['assigned_user_id'] ?? 0);
++        $salesPathId = isset($data['sales_path_id']) ? (int)$data['sales_path_id'] : null;
++
++        if (!$customerId || $description === '') {
++            $this->setError('Kunde und Beschreibung sind erforderlich.');
++            return false;
++        }
++
++        try {
++            if ($id > 0) {
++                // UPDATE
++                $sets = [
++                    'customer_id = ' . $db->quote($customerId),
++                    'description = ' . $db->quote($description),
++                    'assigned_user_id = ' . ($assigned ? $db->quote($assigned) : 'NULL'),
++                    'sales_path_id = ' . ($salesPathId ? $db->quote($salesPathId) : 'NULL'),
++                ];
++                $query = $db->getQuery(true)
++                    ->update('#__fisc_calculator_project')
++                    ->set($sets)
++                    ->where('id = ' . (int)$id);
++                $db->setQuery($query)->execute();
++                return $id;
++            } else {
++                // INSERT
++                $columns = ['customer_id', 'description', 'assigned_user_id', 'sales_path_id', 'created'];
++                $values  = [
++                    $db->quote($customerId),
++                    $db->quote($description),
++                    $assigned ? $db->quote($assigned) : 'NULL',
++                    $salesPathId ? $db->quote($salesPathId) : 'NULL',
++                    $db->quote(Factory::getDate()->toSql()),
++                ];
++                $query = $db->getQuery(true)
++                    ->insert('#__fisc_calculator_project')
++                    ->columns($columns)
++                    ->values(implode(',', $values));
++                $db->setQuery($query)->execute();
++                return (int)$db->insertid();
++            }
++        } catch (\Exception $e) {
++            $this->setError($e->getMessage());
++            return false;
++        }
++    }
+ }
+diff --git a/components/com_fisc_calculator/src/Model/ProjectModel.php b/components/com_fisc_calculator/src/Model/ProjectModel.php
+new file mode 100644
+index 0000000..3333333
+--- /dev/null
++++ b/components/com_fisc_calculator/src/Model/ProjectModel.php
+@@ -0,0 +1,248 @@
++<?php
++namespace Fisccalculator\Component\Fisc_calculator\Site\Model;
++
++use Joomla\CMS\MVC\Model\BaseModel;
++use Joomla\CMS\Factory;
++
++class ProjectModel extends BaseModel
++{
++    /**
++     * Projekt inkl. Cases & Items kopieren
++     */
++    public function copyProjectWithCases(int $projectId): ?int
++    {
++        $db = Factory::getDbo();
++
++        // Original-Projekt
++        $q = $db->getQuery(true)
++            ->select('*')->from('#__fisc_calculator_project')->where('id='.(int)$projectId);
++        $db->setQuery($q);
++        $proj = $db->loadAssoc();
++        if (!$proj) { $this->setError('Projekt nicht gefunden.'); return null; }
++
++        unset($proj['id']);
++        $proj['created'] = Factory::getDate()->toSql();
++        $cols = array_keys($proj);
++        $vals = array_map([$db, 'quote'], array_values($proj));
++        $ins  = $db->getQuery(true)->insert('#__fisc_calculator_project')
++                  ->columns($cols)->values(implode(',', $vals));
++        $db->setQuery($ins)->execute();
++        $newProjectId = (int)$db->insertid();
++
++        // Cases holen
++        $q = $db->getQuery(true)->select('*')->from('#__fisc_calculator_case')
++             ->where('project_id='.(int)$projectId);
++        $db->setQuery($q);
++        $cases = $db->loadAssocList();
++
++        foreach ($cases as $case) {
++            $oldCaseId = $case['id'];
++            unset($case['id']);
++            $case['project_id'] = $newProjectId;
++            $colsC = array_keys($case);
++            $valsC = array_map([$db,'quote'], array_values($case));
++            $insC = $db->getQuery(true)->insert('#__fisc_calculator_case')
++                    ->columns($colsC)->values(implode(',', $valsC));
++            $db->setQuery($insC)->execute();
++            $newCaseId = (int)$db->insertid();
++
++            // Items kopieren
++            $qI = $db->getQuery(true)->select('*')->from('#__fisc_calculator_case_item')
++                  ->where('case_id='.(int)$oldCaseId);
++            $db->setQuery($qI);
++            $items = $db->loadAssocList();
++            foreach ($items as $item) {
++                unset($item['id']);
++                $item['case_id'] = $newCaseId;
++                $colsI = array_keys($item);
++                $valsI = array_map([$db,'quote'], array_values($item));
++                $insI = $db->getQuery(true)->insert('#__fisc_calculator_case_item')
++                        ->columns($colsI)->values(implode(',', $valsI));
++                $db->setQuery($insI)->execute();
++            }
++        }
++        return $newProjectId;
++    }
++
++    /**
++     * Fallbeispiel in anderes Projekt kopieren
++     */
++    public function copyCaseToProject(int $caseId, int $targetProjectId): ?int
++    {
++        $db = Factory::getDbo();
++        $q  = $db->getQuery(true)->select('*')->from('#__fisc_calculator_case')->where('id='.(int)$caseId);
++        $db->setQuery($q);
++        $case = $db->loadAssoc();
++        if (!$case) { $this->setError('Case nicht gefunden.'); return null; }
++
++        unset($case['id']);
++        $case['project_id'] = $targetProjectId;
++        $colsC = array_keys($case);
++        $valsC = array_map([$db,'quote'], array_values($case));
++        $insC = $db->getQuery(true)->insert('#__fisc_calculator_case')
++                ->columns($colsC)->values(implode(',', $valsC));
++        $db->setQuery($insC)->execute();
++        $newCaseId = (int)$db->insertid();
++
++        $qI = $db->getQuery(true)->select('*')->from('#__fisc_calculator_case_item')->where('case_id='.(int)$caseId);
++        $db->setQuery($qI);
++        $items = $db->loadAssocList();
++        foreach ($items as $item) {
++            unset($item['id']);
++            $item['case_id'] = $newCaseId;
++            $colsI = array_keys($item);
++            $valsI = array_map([$db,'quote'], array_values($item));
++            $insI = $db->getQuery(true)->insert('#__fisc_calculator_case_item')
++                    ->columns($colsI)->values(implode(',', $valsI));
++            $db->setQuery($insI)->execute();
++        }
++        return $newCaseId;
++    }
++
++    /**
++     * Preset speichern (Items eines Case als JSON sichern)
++     */
++    public function savePreset(string $presetName, int $caseId): bool
++    {
++        $db = Factory::getDbo();
++        $q = $db->getQuery(true)->select('product_item_id, free_price')
++             ->from('#__fisc_calculator_case_item')->where('case_id='.(int)$caseId);
++        $db->setQuery($q);
++        $items = $db->loadAssocList();
++        if (!$items) { $this->setError('Keine Items im Case.'); return false; }
++        $json = json_encode($items);
++        $ins  = $db->getQuery(true)->insert('#__fisc_calculator_case_preset')
++               ->columns(['name','data'])->values($db->quote($presetName).','.$db->quote($json));
++        $db->setQuery($ins)->execute();
++        return true;
++    }
++
++    /**
++     * Preset anwenden → neues Case im Projekt erzeugen, Items einfügen
++     */
++    public function applyPreset(int $presetId, int $projectId, ?string $caseName = null): ?int
++    {
++        $db = Factory::getDbo();
++        $q  = $db->getQuery(true)->select('data')->from('#__fisc_calculator_case_preset')->where('id='.(int)$presetId);
++        $db->setQuery($q);
++        $row = $db->loadAssoc();
++        if (!$row || empty($row['data'])) { $this->setError('Preset leer/nicht gefunden.'); return null; }
++        $items = json_decode($row['data'], true);
++        if (!is_array($items)) { $this->setError('Preset JSON fehlerhaft.'); return null; }
++
++        $name = $caseName ?: ('Preset '.$presetId);
++        $insC = $db->getQuery(true)->insert('#__fisc_calculator_case')
++               ->columns(['project_id','name'])
++               ->values($db->quote($projectId).','.$db->quote($name));
++        $db->setQuery($insC)->execute();
++        $newCaseId = (int)$db->insertid();
++
++        foreach ($items as $it) {
++            $ci = [
++                'case_id'         => $newCaseId,
++                'product_item_id' => (int)($it['product_item_id'] ?? 0),
++                'free_price'      => isset($it['free_price']) ? (float)$it['free_price'] : null,
++            ];
++            $colsI = array_keys($ci);
++            $valsI = array_map([$db,'quote'], array_values($ci));
++            $insI  = $db->getQuery(true)->insert('#__fisc_calculator_case_item')
++                    ->columns($colsI)->values(implode(',', $valsI));
++            $db->setQuery($insI)->execute();
++        }
++        return $newCaseId;
++    }
++}
+diff --git a/components/com_fisc_calculator/src/Controller/ProjectController.php b/components/com_fisc_calculator/src/Controller/ProjectController.php
+new file mode 100644
+index 0000000..4444444
+--- /dev/null
++++ b/components/com_fisc_calculator/src/Controller/ProjectController.php
+@@ -0,0 +1,97 @@
++<?php
++namespace Fisccalculator\Component\Fisc_calculator\Site\Controller;
++
++use Joomla\CMS\MVC\Controller\BaseController;
++use Joomla\CMS\Factory;
++use Joomla\CMS\Router\Route;
++
++class ProjectController extends BaseController
++{
++    /**
++     * task=project.copy&id=123
++     */
++    public function copy()
++    {
++        $app   = Factory::getApplication();
++        $id    = $app->getInput()->getInt('id');
++        /** @var \Fisccalculator\Component\Fisc_calculator\Site\Model\ProjectModel $model */
++        $model = $this->getModel('Project');
++        if (!$id) {
++            $app->enqueueMessage('Projekt-ID fehlt.', 'error');
++            $this->setRedirect(Route::_('index.php?option=com_fisc_calculator&view=projects', false));
++            return false;
++        }
++        $newId = $model->copyProjectWithCases($id);
++        if ($newId) {
++            $app->enqueueMessage('Projekt kopiert.', 'message');
++            $this->setRedirect(Route::_('index.php?option=com_fisc_calculator&view=project&id='.$newId, false));
++            return true;
++        }
++        $app->enqueueMessage('Kopieren fehlgeschlagen: '.$model->getError(), 'error');
++        $this->setRedirect(Route::_('index.php?option=com_fisc_calculator&view=projects', false));
++        return false;
++    }
++
++    /**
++     * task=project.copyCase&case_id=10&target_id=123
++     */
++    public function copyCase()
++    {
++        $app   = Factory::getApplication();
++        $in    = $app->getInput();
++        $case  = $in->getInt('case_id');
++        $target= $in->getInt('target_id');
++        /** @var \Fisccalculator\Component\Fisc_calculator\Site\Model\ProjectModel $model */
++        $model = $this->getModel('Project');
++        if (!$case || !$target) {
++            $app->enqueueMessage('case_id oder target_id fehlt.', 'error');
++            $this->setRedirect(Route::_('index.php?option=com_fisc_calculator&view=projects', false));
++            return false;
++        }
++        $newCaseId = $model->copyCaseToProject($case, $target);
++        if ($newCaseId) {
++            $app->enqueueMessage('Fallbeispiel kopiert.', 'message');
++            $this->setRedirect(Route::_('index.php?option=com_fisc_calculator&view=project&id='.$target, false));
++            return true;
++        }
++        $app->enqueueMessage('Kopieren fehlgeschlagen: '.$model->getError(), 'error');
++        $this->setRedirect(Route::_('index.php?option=com_fisc_calculator&view=projects', false));
++        return false;
++    }
++
++    /**
++     * task=project.savePreset&case_id=10&name=Mein%20Preset
++     */
++    public function savePreset()
++    {
++        $app   = Factory::getApplication();
++        $in    = $app->getInput();
++        $case  = $in->getInt('case_id');
++        $name  = $in->getString('name');
++        /** @var \Fisccalculator\Component\Fisc_calculator\Site\Model\ProjectModel $model */
++        $model = $this->getModel('Project');
++        if (!$case || $name==='') {
++            $app->enqueueMessage('case_id oder Name fehlt.', 'error');
++            $this->setRedirect(Route::_('index.php?option=com_fisc_calculator&view=projects', false));
++            return false;
++        }
++        if ($model->savePreset($name, $case)) {
++            $app->enqueueMessage('Preset gespeichert.', 'message');
++        } else {
++            $app->enqueueMessage('Preset fehlgeschlagen: '.$model->getError(), 'error');
++        }
++        $this->setRedirect(Route::_('index.php?option=com_fisc_calculator&view=projects', false));
++        return true;
++    }
++
++    /**
++     * task=project.applyPreset&preset_id=3&project_id=123&case_name=Preset%20A
++     */
++    public function applyPreset()
++    {
++        $app = Factory::getApplication();
++        $in  = $app->getInput();
++        $pid = $in->getInt('preset_id');
++        $prj = $in->getInt('project_id');
++        $nm  = $in->getString('case_name', null);
++        /** @var \Fisccalculator\Component\Fisc_calculator\Site\Model\ProjectModel $model */
++        $model = $this->getModel('Project');
++        $newCaseId = $model->applyPreset($pid, $prj, $nm);
++        $this->setRedirect(Route::_('index.php?option=com_fisc_calculator&view=project&id='.$prj, false),
++            $newCaseId ? 'Preset angewendet.' : ('Fehler: '.$model->getError()),
++            $newCaseId ? 'message' : 'error');
++        return (bool)$newCaseId;
++    }
++}
+diff --git a/components/com_fisc_calculator/src/Controller/CaseitemController.php b/components/com_fisc_calculator/src/Controller/CaseitemController.php
+new file mode 100644
+index 0000000..5555555
+--- /dev/null
++++ b/components/com_fisc_calculator/src/Controller/CaseitemController.php
+@@ -0,0 +1,49 @@
++<?php
++namespace Fisccalculator\Component\Fisc_calculator\Site\Controller;
++
++use Joomla\CMS\MVC\Controller\BaseController;
++use Joomla\CMS\Factory;
++
++/**
++ * AJAX: task=caseitem.save  (case_id, product_id, free_price)
++ */
++class CaseitemController extends BaseController
++{
++    public function save()
++    {
++        $app = Factory::getApplication();
++        $in  = $app->getInput();
++        $caseId    = $in->getInt('case_id');
++        $productId = $in->getInt('product_id');
++        $freePrice = $in->getFloat('free_price');
++
++        if (!$caseId || !$productId) {
++            $app->setHeader('status', 400, true);
++            echo json_encode(['ok'=>false,'msg'=>'case_id oder product_id fehlt']);
++            $app->close();
++        }
++        $db = Factory::getDbo();
++        $q  = $db->getQuery(true)
++              ->update('#__fisc_calculator_case_item')
++              ->set('free_price = ' . ($freePrice !== null ? $db->quote($freePrice) : 'NULL'))
++              ->where('case_id = ' . (int)$caseId)
++              ->where('product_item_id = ' . (int)$productId);
++        try {
++            $db->setQuery($q)->execute();
++            echo json_encode(['ok'=>true]);
++        } catch (\Exception $e) {
++            $app->setHeader('status', 500, true);
++            echo json_encode(['ok'=>false,'msg'=>$e->getMessage()]);
++        }
++        $app->close();
++    }
++}
+diff --git a/components/com_fisc_calculator/sql/updates/mysql/2025-09-15-feature-ext.sql b/components/com_fisc_calculator/sql/updates/mysql/2025-09-15-feature-ext.sql
+new file mode 100644
+index 0000000..6666666
+--- /dev/null
++++ b/components/com_fisc_calculator/sql/updates/mysql/2025-09-15-feature-ext.sql
+@@ -0,0 +1,36 @@
++-- sales_path_id am Projekt
++ALTER TABLE `#__fisc_calculator_project`
++  ADD COLUMN `sales_path_id` INT UNSIGNED NULL AFTER `assigned_user_id`;
++
++-- Preset-Tabelle
++CREATE TABLE IF NOT EXISTS `#__fisc_calculator_case_preset` (
++  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
++  `name` VARCHAR(255) NOT NULL,
++  `data` MEDIUMTEXT NOT NULL,
++  PRIMARY KEY (`id`)
++) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
++
++-- Sicherstellen, dass die Case-Tabellen existieren (ggf. anpassen)
++CREATE TABLE IF NOT EXISTS `#__fisc_calculator_case` (
++  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
++  `project_id` INT UNSIGNED NOT NULL,
++  `name` VARCHAR(255) NOT NULL,
++  PRIMARY KEY (`id`),
++  KEY `idx_project` (`project_id`)
++) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
++
++CREATE TABLE IF NOT EXISTS `#__fisc_calculator_case_item` (
++  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
++  `case_id` INT UNSIGNED NOT NULL,
++  `product_item_id` INT UNSIGNED NOT NULL,
++  `free_price` DECIMAL(10,2) DEFAULT NULL,
++  PRIMARY KEY (`id`),
++  KEY `idx_case` (`case_id`),
++  KEY `idx_product` (`product_item_id`)
++) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
