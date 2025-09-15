@@ -44,7 +44,8 @@ $wa->useStyle('com_fisc_calculator.list');
 					class="icon-plus"></i>
 				<?php echo Text::_('COM_FISC_CALCULATOR_ADD_ITEM'); ?></a>
 		<?php endif; ?>		</div>	</div>		<div class="row">		<div class="col-md-4">			<div class="card">				<div class="card-header">					<h6>Filter</h6>				</div>								<div class="card-body">					<?php if(!empty($this->filterForm)) { echo LayoutHelper::render('joomla.searchtools.default', array('view' => $this)); } ?>				</div>			</div>		</div>				<div class="col-md-8">			<div class="card">				<div class="card-header">					<h6>Rechner</h6>				</div>								<div class="card-body">					<ul class="repair_items_list">
-												<?php foreach ($this->items as $i => $item) : ?>						<li style="border-left: 6px solid #64C8C9">							<b><a href="<?php echo Route::_('index.php?option=com_fisc_calculator&view=calculator&id='.(int) $item->id); ?>">
+						<li style="border-left: 6px solid #64C8C9">							<b>								<a href="<?php echo Route::_('index.php?option=com_fisc_calculator&view=projects'); ?>">
+									Preisberechnung								</a>							</b><br /><hr />						Preisberechnung für Fallbeispiele</li>						<?php foreach ($this->items as $i => $item) : ?>						<li style="border-left: 6px solid #64C8C9">							<b><a href="<?php echo Route::_('index.php?option=com_fisc_calculator&view=calculator&id='.(int) $item->id); ?>">
 							<?php echo $this->escape($item->title); ?></a></b><br /><hr />						<?php echo $item->description; ?></li>						<?php endforeach; ?>					</ul>				</div>			</div>		</div>	</div>		<input type="hidden" name="task" value="" />		<input type="hidden" name="boxchecked" value="0" />		<input type="hidden" name="filter_order" value="" />		<input type="hidden" name="filter_order_Dir" value="" />
 	<?php echo HTMLHelper::_('form.token'); ?>
 </form>

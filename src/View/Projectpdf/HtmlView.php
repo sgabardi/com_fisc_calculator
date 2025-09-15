@@ -1,7 +1,7 @@
 <?php
-namespace FiscCalculator\Component\Fisc_calculator\Site\View\Project;
+namespace FiscCalculator\Component\Fisc_calculator\Site\View\Projectpdf;
 
-\defined('_JEXEC') or die;
+defined('_JEXEC') or die;
 
 use Joomla\CMS\Factory;
 use Joomla\CMS\MVC\View\HtmlView as BaseHtmlView;
@@ -43,3 +43,4 @@ class HtmlView extends BaseHtmlView
         parent::display($tpl);
     }
 }
+
